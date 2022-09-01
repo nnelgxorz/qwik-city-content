@@ -8,11 +8,16 @@ use serde::{Deserialize, Serialize};
 pub struct Config {
     pub input: PathBuf,
     pub output: PathBuf,
+    pub routes: PathBuf,
 }
 
 impl Config {
-    pub fn new(input: PathBuf, output: PathBuf) -> Self {
-        Self { input, output }
+    pub fn new(input: PathBuf, output: PathBuf, routes: PathBuf) -> Self {
+        Self {
+            input,
+            output,
+            routes,
+        }
     }
 }
 

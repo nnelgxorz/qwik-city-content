@@ -94,8 +94,8 @@ impl Worker {
                         println!("{}", e)
                     }
                 }
-                Job::GenerateRouteParams(routes) => {
-                    if let Err(e) = crate::jobs::generate_route_params::generate(routes) {
+                Job::GenerateRouteParams(config) => {
+                    if let Err(e) = crate::jobs::generate_route_params::generate(&config.routes) {
                         println!("{}", e)
                     }
                 }
@@ -116,7 +116,7 @@ pub enum Job {
     ProcessMDX(ContentRanges, String, PathBuf, Arc<Config>),
     GenerateTaxonomies(Arc<Config>, Arc<GeneratedData>),
     GenerateCollections(Arc<Config>, Arc<GeneratedData>),
-    GenerateRouteParams(PathBuf),
+    GenerateRouteParams(Arc<Config>),
     WriteHelpers(Arc<Config>),
     Terminate,
 }

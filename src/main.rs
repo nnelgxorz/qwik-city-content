@@ -18,12 +18,11 @@ use crate::threadpool::ThreadPool;
 fn main() {
     let input = PathBuf::from("examples/blog/src/content");
     let output = PathBuf::from("examples/blog/src/content-generated");
-    let config = Arc::new(Config::new(input, output));
+    let routes = PathBuf::from("examples/blog/src/routes");
+    let config = Arc::new(Config::new(input, output, routes));
     let mut pool = ThreadPool::new(8);
 
-    pool.execute(Job::GenerateRouteParams(PathBuf::from(
-        "examples/blog/src/routes",
-    )));
+    pool.execute(Job::GenerateRouteParams(config.clone()));
     let generated = Arc::new(process_content_dir(&mut pool, config.clone()));
     pool.execute(Job::GenerateTaxonomies(config.clone(), generated.clone()));
     pool.execute(Job::GenerateCollections(config.clone(), generated.clone()));
