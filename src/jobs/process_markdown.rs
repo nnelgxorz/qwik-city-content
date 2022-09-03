@@ -10,6 +10,7 @@ use crate::{
     utils::ContentRanges,
 };
 
+#[inline]
 pub fn generate(
     ranges: ContentRanges,
     content: String,
@@ -39,8 +40,7 @@ pub fn generate(
         let file = File::create(&output)?;
         let mut writer = BufWriter::new(file);
         let _ = writer.write(b"export default ")?;
-        let exports = serde_json::to_string_pretty(&data)?;
-        let _ = writer.write(exports.replace("\"Content\"", "Content").as_bytes());
+        let _ = writer.write(serde_json::to_string(&data).unwrap().as_bytes())?;
         writer.flush()?;
     }
     Ok(())

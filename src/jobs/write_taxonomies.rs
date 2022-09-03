@@ -5,9 +5,10 @@ use std::{
 
 use crate::{
     types::{Config, GeneratedData},
-    utils::{camel_case, snake_case},
+    utils::{write_camel_case, write_snake_case},
 };
 
+#[inline]
 pub fn generate(config: Arc<Config>, gen: Arc<GeneratedData>) -> std::io::Result<()> {
     std::fs::create_dir_all(&config.output)?;
     let file = std::fs::File::create(&config.output.join("taxonomies.ts"))?;
@@ -26,11 +27,11 @@ pub fn generate(config: Arc<Config>, gen: Arc<GeneratedData>) -> std::io::Result
 
     for (tag, ids) in gen.taxonomies.iter() {
         let mut id_iter = ids.iter();
-        writer.write_fmt(format_args!(
-            "export const {}: {}Tax[] = [",
-            snake_case(tag),
-            camel_case(tag)
-        ))?;
+        let _ = writer.write("export const ".as_bytes())?;
+        write_snake_case(tag, &mut writer)?;
+        let _ = writer.write(": ".as_bytes())?;
+        write_camel_case(tag, &mut writer)?;
+        let _ = writer.write("Tax[] = [".as_bytes())?;
         if let Some(first) = id_iter.next() {
             writer.write_fmt(format_args!(" q{}", first))?;
             for id in id_iter {
@@ -44,7 +45,9 @@ pub fn generate(config: Arc<Config>, gen: Arc<GeneratedData>) -> std::io::Result
 
     for (tag, ids) in gen.taxonomies.iter() {
         let mut id_iter = ids.iter();
-        writer.write_fmt(format_args!("export type {}Tax = Merge<", camel_case(tag)))?;
+        let _ = writer.write("export type ".as_bytes())?;
+        write_camel_case(tag, &mut writer)?;
+        let _ = writer.write("Tax = Merge<".as_bytes())?;
         if let Some(first) = id_iter.next() {
             writer.write_fmt(format_args!("typeof q{}", first))?;
             for id in id_iter {

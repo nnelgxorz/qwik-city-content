@@ -29,14 +29,18 @@ fn main() {
     if !generated.output_paths.is_empty() {
         pool.execute(Job::WriteHelpers(config))
     }
+
+    println!("{} content files", generated.output_paths.len());
 }
 
+#[inline]
 fn process_content_dir(pool: &mut ThreadPool, config: Arc<Config>) -> GeneratedData {
     let mut gen = GeneratedData::default();
     process_content_rec(&config.input, pool, &mut gen, config.clone());
     gen
 }
 
+#[inline]
 fn process_content_rec(
     curr: &Path,
     pool: &mut ThreadPool,

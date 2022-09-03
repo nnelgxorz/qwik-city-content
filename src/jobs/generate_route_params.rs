@@ -5,6 +5,7 @@ use std::{
 
 use crate::route_params::RouteParams;
 
+#[inline]
 pub fn generate<P: AsRef<Path>>(routes: P) -> std::io::Result<usize> {
     let mut count = 0;
     generate_route_params_rec(routes, &mut count)?;
