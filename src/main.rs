@@ -74,9 +74,7 @@ fn process_content_rec(
                     let rel = path.strip_prefix(&config.input).unwrap();
                     let dir = rel.parent().unwrap();
                     for tag in frontmatter.get_tags() {
-                        let tag = tag
-                            .trim_start_matches(|c| c == '\'' || c == '"')
-                            .trim_end_matches(|c| c == '\'' || c == '"');
+                        let tag = tag;
                         if let Some(vec) = gen.collections.get_mut(tag) {
                             vec.push(id);
                         } else {
