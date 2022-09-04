@@ -25,22 +25,23 @@ pub fn generate(
     {
         let outdir: &Path = &config.output;
         let output = outdir.join(format!("{}.tsx", &stripped));
-        let data = match Page::create(
-            &stripped,
-            &output,
+        let _yaml = crate::yaml::Parser::from_str(
             &content[ranges.frontmatter.start..ranges.frontmatter.end],
-            &content[ranges.body.start..ranges.body.end],
-        ) {
-            Some(data) => data,
-            _ => return Ok(()),
-        };
+        )
+        .parse();
         if let Some(parent) = output.parent() {
             let _ = std::fs::create_dir_all(parent);
         }
         let file = File::create(&output)?;
         let mut writer = BufWriter::new(file);
         let _ = writer.write(b"export default ")?;
-        let _ = writer.write(serde_json::to_string(&data).unwrap().as_bytes())?;
+        Page::write(
+            &stripped,
+            &output,
+            &content[ranges.frontmatter.start..ranges.frontmatter.end],
+            &content[ranges.body.start..ranges.body.end],
+            &mut writer,
+        )?;
         writer.flush()?;
     }
     Ok(())

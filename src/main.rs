@@ -3,6 +3,7 @@ mod route_params;
 mod threadpool;
 mod types;
 mod utils;
+mod yaml;
 
 use std::{
     path::{Path, PathBuf},
@@ -10,8 +11,9 @@ use std::{
 };
 
 use threadpool::Job;
-use types::{Config, FrontMatter, GeneratedData};
+use types::{Config, GeneratedData};
 use utils::get_content_ranges;
+use yaml::Yaml;
 
 use crate::threadpool::ThreadPool;
 
@@ -19,11 +21,14 @@ fn main() {
     let input = PathBuf::from("examples/blog/src/content");
     let output = PathBuf::from("examples/blog/src/content-generated");
     let routes = PathBuf::from("examples/blog/src/routes");
+    if let Err(e) = std::fs::remove_dir_all(&output) {
+        println!("{}", e);
+    }
     let config = Arc::new(Config::new(input, output, routes));
     let mut pool = ThreadPool::new(8);
 
-    pool.execute(Job::GenerateRouteParams(config.clone()));
     let generated = Arc::new(process_content_dir(&mut pool, config.clone()));
+    pool.execute(Job::GenerateRouteParams(config.clone()));
     pool.execute(Job::GenerateTaxonomies(config.clone(), generated.clone()));
     pool.execute(Job::GenerateCollections(config.clone(), generated.clone()));
     if !generated.output_paths.is_empty() {
@@ -57,13 +62,20 @@ fn process_content_rec(
                     let path = entry.path();
                     let id = gen.output_paths.len();
                     let ranges = get_content_ranges(file.as_bytes());
-                    let frontmatter: FrontMatter = serde_yaml::from_str(
+                    let frontmatter: Yaml = yaml::Parser::from_str(
                         &file[ranges.frontmatter.start..ranges.frontmatter.end],
                     )
+                    .parse()
                     .unwrap();
+                    if frontmatter.is_draft() {
+                        continue;
+                    }
                     let rel = path.strip_prefix(&config.input).unwrap();
                     let dir = rel.parent().unwrap();
-                    for tag in frontmatter.tags.iter() {
+                    for tag in frontmatter.get_tags() {
+                        let tag = tag
+                            .trim_start_matches(|c| c == '\'' || c == '"')
+                            .trim_end_matches(|c| c == '\'' || c == '"');
                         if let Some(vec) = gen.collections.get_mut(tag) {
                             vec.push(id);
                         } else {

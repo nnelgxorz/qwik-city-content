@@ -8,12 +8,10 @@ export default component$(() => {
 
       <p>The blog meta-framework for Qwik.</p>
 
-      <h3>
-        <p>Recent Posts</p>
-        <ul>
+      <h3 id="recent-posts">Recent Posts</h3>
+      <ul aria-labelledby="recent-posts">
 
-        </ul>
-      </h3>
+      </ul>
     </div>
   );
 });

@@ -1,9 +1,8 @@
 use std::collections::hash_map::DefaultHasher;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use std::hash::Hasher;
+use std::io::Write;
 use std::path::{Path, PathBuf};
-
-use serde::{Deserialize, Serialize};
 
 pub struct Config {
     pub input: PathBuf,
@@ -28,7 +27,7 @@ pub struct GeneratedData {
     pub collections: HashMap<String, Vec<usize>>,
 }
 
-#[derive(Debug, Eq, PartialEq, Serialize)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct Page<'a> {
     _id: u64,
     _slug: String,
@@ -36,45 +35,39 @@ pub struct Page<'a> {
     _path: PathBuf,
     _out_path: &'a Path,
     _raw: &'a str,
-    #[serde(flatten)]
-    frontmatter: BTreeMap<String, serde_yaml::Value>,
     _html: String,
 }
 
 impl<'a> Page<'a> {
-    pub fn create<P: AsRef<Path> + 'a>(
+    pub fn write<P: AsRef<Path> + 'a, W: Write>(
         p: P,
         out_path: &'a Path,
         frontmatter: &'a str,
         raw: &'a str,
-    ) -> Option<Self> {
+        w: &mut W,
+    ) -> std::io::Result<()> {
         let mut hasher = DefaultHasher::new();
         hasher.write(p.as_ref().to_str().unwrap_or_default().as_bytes());
         let _id = hasher.finish();
         let _path = p.as_ref().to_path_buf();
-        let _slug = _path.file_stem().and_then(|s| s.to_str())?;
-        let _directory = _path.parent().and_then(|s| s.to_str())?;
-        let front_matter = serde_yaml::from_str(frontmatter).unwrap_or_else(|e| {
-            println!("Err: {}\n - {}", _path.display(), e);
-            BTreeMap::new()
-        });
+        let _slug = _path.file_stem().and_then(|s| s.to_str());
+        let _directory = _path.parent().and_then(|s| s.to_str());
+        let yaml = crate::yaml::Parser::from_str(frontmatter).parse();
         let mut html = String::new();
         pulldown_cmark::html::push_html(&mut html, pulldown_cmark::Parser::new(raw));
-        Some(Self {
-            _id,
-            _slug: _slug.to_owned(),
-            _directory: _directory.to_owned(),
-            _path,
-            _out_path: out_path,
-            _raw: raw.trim(),
-            frontmatter: front_matter,
-            _html: html,
-        })
+        w.write_all("{ ".as_bytes())?;
+        w.write_fmt(format_args!("_id: {}, ", _id))?;
+        w.write_fmt(format_args!("_slug: \"{}\", ", _slug.unwrap_or_default()))?;
+        w.write_fmt(format_args!(
+            "_directory: \"{}\", ",
+            _directory.unwrap_or_default()
+        ))?;
+        w.write_fmt(format_args!("_html: {:?}, ", html))?;
+        w.write_fmt(format_args!("_outpath: \"{}\", ", out_path.display()))?;
+        if let Ok(yaml) = yaml {
+            yaml.write_json(w)?;
+        }
+        w.write_all(" }".as_bytes())?;
+        Ok(())
     }
-}
-
-#[derive(Debug, PartialEq, Eq, Deserialize)]
-pub struct FrontMatter {
-    #[serde(default)]
-    pub tags: Vec<String>,
 }

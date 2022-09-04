@@ -10,6 +10,9 @@ use crate::{
 
 #[inline]
 pub fn generate(config: Arc<Config>, gen: Arc<GeneratedData>) -> std::io::Result<()> {
+    if gen.output_paths.is_empty() {
+        return Ok(());
+    }
     std::fs::create_dir_all(&config.output)?;
     let file = std::fs::File::create(config.output.join("collections.ts"))?;
     let mut writer = BufWriter::new(file);
@@ -29,7 +32,7 @@ pub fn generate(config: Arc<Config>, gen: Arc<GeneratedData>) -> std::io::Result
         let mut id_iter = ids.iter();
         let _ = writer.write("export const ".as_bytes())?;
         write_snake_case(tag, &mut writer)?;
-        let _ = writer.write(": Tagged".as_bytes())?;
+        let _ = writer.write(": ".as_bytes())?;
         write_camel_case(tag, &mut writer)?;
         let _ = writer.write("[] = [".as_bytes())?;
         if let Some(first) = id_iter.next() {
@@ -45,7 +48,7 @@ pub fn generate(config: Arc<Config>, gen: Arc<GeneratedData>) -> std::io::Result
 
     for (tag, ids) in gen.collections.iter() {
         let mut id_iter = ids.iter();
-        let _ = writer.write("export type Tagged".as_bytes())?;
+        let _ = writer.write("export type ".as_bytes())?;
         write_camel_case(tag, &mut writer)?;
         let _ = writer.write(" = Merge<".as_bytes())?;
         if let Some(first) = id_iter.next() {
