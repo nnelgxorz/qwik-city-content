@@ -53,8 +53,6 @@ impl<'a> Page<'a> {
         let _slug = _path.file_stem().and_then(|s| s.to_str());
         let _directory = _path.parent().and_then(|s| s.to_str());
         let yaml = crate::yaml::Parser::from_str(frontmatter).parse();
-        let mut html = String::new();
-        pulldown_cmark::html::push_html(&mut html, pulldown_cmark::Parser::new(raw));
         w.write_all("{ ".as_bytes())?;
         w.write_fmt(format_args!("_id: {}, ", _id))?;
         w.write_fmt(format_args!("_slug: \"{}\", ", _slug.unwrap_or_default()))?;
@@ -62,7 +60,9 @@ impl<'a> Page<'a> {
             "_directory: \"{}\", ",
             _directory.unwrap_or_default()
         ))?;
-        w.write_fmt(format_args!("_html: {:?}, ", html))?;
+        w.write_all("_html: \"".as_bytes())?;
+        pulldown_cmark::html::write_html(w.by_ref(), pulldown_cmark::Parser::new(raw))?;
+        w.write_all(", \"".as_bytes())?;
         w.write_fmt(format_args!("_outpath: \"{}\", ", out_path.display()))?;
         if let Ok(yaml) = yaml {
             yaml.write_json(w)?;
