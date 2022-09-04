@@ -21,11 +21,14 @@ fn main() {
     let input = PathBuf::from("examples/blog/src/content");
     let output = PathBuf::from("examples/blog/src/content-generated");
     let routes = PathBuf::from("examples/blog/src/routes");
+    if let Err(e) = std::fs::remove_dir_all(&output) {
+        println!("{}", e);
+    }
     let config = Arc::new(Config::new(input, output, routes));
     let mut pool = ThreadPool::new(8);
 
-    pool.execute(Job::GenerateRouteParams(config.clone()));
     let generated = Arc::new(process_content_dir(&mut pool, config.clone()));
+    pool.execute(Job::GenerateRouteParams(config.clone()));
     pool.execute(Job::GenerateTaxonomies(config.clone(), generated.clone()));
     pool.execute(Job::GenerateCollections(config.clone(), generated.clone()));
     if !generated.output_paths.is_empty() {
