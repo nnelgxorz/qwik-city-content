@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use std::{borrow::Cow, ops::Range};
+use std::{borrow::Cow, io::Write, ops::Range};
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct ContentRanges {
@@ -7,6 +7,7 @@ pub struct ContentRanges {
     pub body: Range<usize>,
 }
 
+#[inline]
 pub fn get_content_ranges(content: &[u8]) -> ContentRanges {
     if !content.starts_with(b"---") {
         return ContentRanges {
@@ -33,6 +34,7 @@ pub fn get_content_ranges(content: &[u8]) -> ContentRanges {
     }
 }
 
+#[inline]
 pub fn capitalize(string: &str) -> Cow<'_, str> {
     if let Some(first) = string.chars().next() {
         if first.is_ascii_uppercase() {
@@ -45,8 +47,9 @@ pub fn capitalize(string: &str) -> Cow<'_, str> {
     }
     string.into()
 }
-pub fn camel_case(string: &str) -> String {
-    let mut camel_cased = String::new();
+
+#[inline]
+pub fn write_camel_case<W: Write>(string: &str, w: &mut W) -> std::io::Result<()> {
     let mut uppercase = true;
     for char in string.chars() {
         if char.is_whitespace() || char.is_ascii_punctuation() {
@@ -58,21 +61,22 @@ pub fn camel_case(string: &str) -> String {
         } else {
             char
         };
-        camel_cased.push(push);
+        let _ = w.write(&[push as u8])?;
         uppercase = false;
     }
-    camel_cased
+    Ok(())
 }
-pub fn snake_case(string: &str) -> String {
-    let mut snake_cased = String::new();
+
+#[inline]
+pub fn write_snake_case<W: Write>(string: &str, w: &mut W) -> std::io::Result<()> {
     for char in string.chars() {
         if char.is_whitespace() || char.is_ascii_punctuation() {
-            snake_cased.push('_');
+            let _ = w.write(&[b'_'])?;
             continue;
         }
-        snake_cased.push(char.to_ascii_lowercase());
+        let _ = w.write(&[char.to_ascii_lowercase() as u8])?;
     }
-    snake_cased
+    Ok(())
 }
 
 #[cfg(test)]
