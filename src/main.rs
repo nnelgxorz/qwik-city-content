@@ -55,7 +55,7 @@ fn process_content_rec(
 ) {
     if let Ok(dir) = std::fs::read_dir(curr) {
         for entry in dir.filter_map(|e| e.ok()) {
-            if entry.path().is_dir() {
+            if entry.path().is_dir() && entry.path() != config.output {
                 process_content_rec(&entry.path(), pool, gen, config.clone());
             }
             if entry.path().is_file() {
