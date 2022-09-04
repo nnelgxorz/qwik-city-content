@@ -1,3 +1,4 @@
+mod html;
 mod jobs;
 mod route_params;
 mod threadpool;

@@ -4,6 +4,8 @@ use std::hash::Hasher;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+use crate::html;
+
 pub struct Config {
     pub input: PathBuf,
     pub output: PathBuf,
@@ -61,8 +63,8 @@ impl<'a> Page<'a> {
             _directory.unwrap_or_default()
         ))?;
         w.write_all("_html: \"".as_bytes())?;
-        pulldown_cmark::html::write_html(w.by_ref(), pulldown_cmark::Parser::new(raw))?;
-        w.write_all(", \"".as_bytes())?;
+        html::write_html(w.by_ref(), pulldown_cmark::Parser::new(raw.trim()))?;
+        w.write_all("\", ".as_bytes())?;
         w.write_fmt(format_args!("_outpath: \"{}\", ", out_path.display()))?;
         if let Ok(yaml) = yaml {
             yaml.write_json(w)?;
