@@ -98,10 +98,10 @@ pub struct Parser<'a> {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum YamlError {
-    ExpectedKey,
-    ExpectedValue,
-    ExpectedQuote,
+    UnexpectedEndOfInput,
+    EmptyString,
     ExpectedDigit,
+    Expected(char),
 }
 
 impl<'a> Parser<'a> {
@@ -293,7 +293,7 @@ impl<'a> Parser<'a> {
             if next == ':' {
                 let key = self.slice();
                 if key.is_empty() {
-                    return Err(YamlError::ExpectedKey);
+                    return Err(YamlError::EmptyString);
                 }
                 let parent_idx = self.push_key(parent);
                 self.chomp(); // Skip colon
@@ -303,7 +303,7 @@ impl<'a> Parser<'a> {
             }
             self.chomp()
         }
-        Err(YamlError::ExpectedKey)
+        Err(YamlError::Expected(':'))
     }
     fn parse_multiline_object(&mut self, parent: usize, indent: usize) -> Result<(), YamlError> {
         self.commit();
@@ -334,7 +334,7 @@ impl<'a> Parser<'a> {
     }
     fn parse_value(&mut self, parent: usize) -> Result<(), YamlError> {
         match self.peek() {
-            None => Err(YamlError::ExpectedValue),
+            None => Err(YamlError::UnexpectedEndOfInput),
             Some('[') => self.parse_inline_list(parent),
             Some('{') => self.parse_inline_object(parent),
             Some('\r') | Some('\n') => {
@@ -394,7 +394,7 @@ impl<'a> Parser<'a> {
         let quote = match self.peek() {
             Some('\'') => '\'',
             Some('"') => '"',
-            _ => return Err(YamlError::ExpectedQuote),
+            _ => return Err(YamlError::Expected('"')),
         };
         self.chomp();
         loop {
@@ -408,7 +408,7 @@ impl<'a> Parser<'a> {
                     }
                     self.chomp()
                 }
-                None => return Err(YamlError::ExpectedQuote),
+                None => return Err(YamlError::Expected(quote)),
             }
         }
         Ok(())
@@ -419,7 +419,7 @@ impl<'a> Parser<'a> {
             match self.peek() {
                 Some(',') | Some('\r') | Some('\n') | Some(']') | Some('}') | None => {
                     let kind = match self.slice().trim_end() {
-                        "" => return Err(YamlError::ExpectedValue),
+                        "" => return Err(YamlError::EmptyString),
                         "false" | "NO" | "true" | "YES" => YamlKind::Bool,
                         "NULL" => YamlKind::Null,
                         _ => YamlKind::String,
