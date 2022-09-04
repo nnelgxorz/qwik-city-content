@@ -83,11 +83,6 @@ fn process_content_rec(
                             gen.collections.insert(tag.to_owned(), vec![id]);
                         }
                     }
-                    if let Some(vec) = gen.collections.get_mut("all") {
-                        vec.push(id);
-                    } else {
-                        gen.collections.insert("all".to_owned(), vec![id]);
-                    }
                     for segment in dir {
                         let key = segment.to_str().unwrap();
                         if let Some(vec) = gen.taxonomies.get_mut(key) {
