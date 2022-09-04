@@ -37,6 +37,8 @@ impl YamlNode {
 pub struct Yaml<'a> {
     src: &'a str,
     inner: Vec<YamlNode>,
+    tags: Option<usize>,
+    draft: Option<usize>,
 }
 
 #[allow(dead_code)]
@@ -52,48 +54,32 @@ impl<'a> Yaml<'a> {
         Ok(())
     }
     pub fn is_draft(&self) -> bool {
-        if let Some(draft_idx) = self
-            .inner
-            .iter()
-            .position(|n| n.kind == YamlKind::Key && n.slice(self.src) == "draft")
-        {
-            if let Some(node) = self.inner.get(draft_idx + 1) {
-                if node.kind == YamlKind::Bool {
-                    match node.slice(self.src) {
-                        "true" => return true,
-                        "false" => return false,
-                        _ => todo!("None true/false bool value"),
-                    }
+        if let Some(node) = self.draft.and_then(|idx| self.inner.get(idx)) {
+            if node.kind == YamlKind::Bool {
+                match node.slice(self.src) {
+                    "true" => return true,
+                    "false" => return false,
+                    _ => todo!("Non true/false bool value"),
                 }
+            } else {
+                println!("Draft must be a boolean")
             }
         }
         false
     }
     pub fn get_tags(&'a self) -> Tags<'a> {
-        if let Some(tags_idx) = self
-            .inner
-            .iter()
-            .position(|n| n.kind == YamlKind::Key && n.slice(self.src) == "tags")
+        if let Some((idx, node)) = self
+            .tags
+            .and_then(|idx| self.inner.get(idx).map(|n| (idx, n)))
         {
-            let list_idx = tags_idx + 1;
-            if let Some(node) = self.inner.get(list_idx) {
-                if node.kind == YamlKind::List {
-                    return Tags::from_slice(
-                        tags_idx + 2,
-                        self.src,
-                        self.inner.get(tags_idx + 2..).unwrap_or(&[]),
-                    );
-                    // if let Some(children) =  {
-                    //     for child in children.iter() {
-                    //         if child.parent != tags_idx + 2 {
-                    //             break;
-                    //         }
-                    //         if child.kind == YamlKind::String {
-                    //             tags.push(child.slice(self.src).to_owned())
-                    //         }
-                    //     }
-                    // }
-                }
+            if node.kind == YamlKind::List {
+                return Tags::from_slice(
+                    idx + 1,
+                    self.src,
+                    self.inner.get(idx + 1..).unwrap_or(&[]),
+                );
+            } else {
+                println!("Tags must be a list")
             }
         }
         Tags::from_slice(0, "", &[])
@@ -106,6 +92,8 @@ pub struct Parser<'a> {
     start: usize,
     curr: usize,
     nodes: Vec<YamlNode>,
+    tags: Option<usize>,
+    draft: Option<usize>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -125,6 +113,8 @@ impl<'a> Parser<'a> {
             chars: trimmed.chars().peekable(),
             src: trimmed,
             nodes: Vec::default(),
+            tags: None,
+            draft: None,
         }
     }
     pub fn slice(&self) -> &str {
@@ -166,11 +156,27 @@ impl<'a> Parser<'a> {
         });
         self.nodes.len()
     }
+    pub fn push_key(&mut self, parent: usize) -> usize {
+        self.nodes.push(YamlNode {
+            parent,
+            kind: YamlKind::Key,
+            range: (self.start, self.curr),
+        });
+        let id = self.nodes.len();
+        match self.slice() {
+            "tags" => self.tags = Some(id),
+            "draft" => self.draft = Some(id),
+            _ => {}
+        }
+        id
+    }
     pub fn parse(mut self) -> Result<Yaml<'a>, YamlError> {
         self.parse_object(0)?;
         Ok(Yaml {
             src: self.src,
             inner: self.nodes,
+            tags: self.tags,
+            draft: self.draft,
         })
     }
     pub fn parse_object(&mut self, parent: usize) -> Result<(), YamlError> {
@@ -289,7 +295,7 @@ impl<'a> Parser<'a> {
                 if key.is_empty() {
                     return Err(YamlError::ExpectedKey);
                 }
-                let parent_idx = self.push_node(YamlKind::Key, parent);
+                let parent_idx = self.push_key(parent);
                 self.chomp(); // Skip colon
                 self.skip_ws();
                 self.commit();
@@ -471,8 +477,16 @@ impl<'a> Iterator for Tags<'a> {
                 self.state = 1;
                 return None;
             }
-            if next.kind == YamlKind::String {
-                return Some(next.slice(self.src));
+            let slice = next
+                .slice(self.src)
+                .trim_start_matches(|c| c == '\'' || c == '"')
+                .trim_end_matches(|c| c == '\'' || c == '"');
+            let is_valid = slice.starts_with(|c: char| c.is_ascii_alphabetic())
+                && slice
+                    .find(|c: char| !c.is_ascii_alphanumeric() && !matches!(c, '-' | ' ' | '_'))
+                    .is_none();
+            if is_valid && next.kind == YamlKind::String {
+                return Some(slice);
             }
         }
     }
