@@ -12,86 +12,51 @@ use std::{
 };
 
 use threadpool::Job;
-use types::{Config, GeneratedData};
-use utils::get_content_ranges;
-use yaml::Yaml;
+use types::{Config, Content};
 
 use crate::threadpool::ThreadPool;
 
 fn main() {
     let input = PathBuf::from("examples/blog/src/content");
-    let output = PathBuf::from("examples/blog/src/content-generated");
+    let output = PathBuf::from("examples/blog/src/content/content-generated");
     let routes = PathBuf::from("examples/blog/src/routes");
     if let Err(e) = std::fs::remove_dir_all(&output) {
-        println!("{}", e);
+        println!("Remove Dir: {}", e);
     }
+    if let Err(e) = std::fs::create_dir_all(&output) {
+        println!("Create Dir: {}", e)
+    }
+    let size = std::fs::read_dir(&input).unwrap().count();
     let config = Arc::new(Config::new(input, output, routes));
-    let mut pool = ThreadPool::new(8);
+    let pool = ThreadPool::new(8);
+    let content = Arc::new(process_content(size, &pool, config.clone()));
 
-    let generated = Arc::new(process_content_dir(&mut pool, config.clone()));
+    pool.execute(Job::ProcessCollections(content.clone(), config.clone()));
+    pool.execute(Job::ProcessTaxonomies(content.clone(), config.clone()));
+    pool.execute(Job::ProcessMarkdown(content.clone(), config.clone()));
     pool.execute(Job::GenerateRouteParams(config.clone()));
-    pool.execute(Job::GenerateTaxonomies(config.clone(), generated.clone()));
-    pool.execute(Job::GenerateCollections(config.clone(), generated.clone()));
-    if !generated.output_paths.is_empty() {
+    if !content.is_empty() {
         pool.execute(Job::WriteHelpers(config))
     }
-
-    println!("{} content files", generated.output_paths.len());
+    println!("{} content files", content.len())
 }
 
-#[inline]
-fn process_content_dir(pool: &mut ThreadPool, config: Arc<Config>) -> GeneratedData {
-    let mut gen = GeneratedData::default();
-    process_content_rec(&config.input, pool, &mut gen, config.clone());
-    gen
+fn process_content(size: usize, pool: &ThreadPool, config: Arc<Config>) -> Content {
+    let mut content = Content::with_capacity(size);
+    process_content_rec(&config.input, &mut content, pool, config.clone());
+    content
 }
 
-#[inline]
-fn process_content_rec(
-    curr: &Path,
-    pool: &mut ThreadPool,
-    gen: &mut GeneratedData,
-    config: Arc<Config>,
-) {
+fn process_content_rec(curr: &Path, content: &mut Content, pool: &ThreadPool, config: Arc<Config>) {
     if let Ok(dir) = std::fs::read_dir(curr) {
         for entry in dir.filter_map(|e| e.ok()) {
             if entry.path().is_dir() && entry.path() != config.output {
                 process_content_rec(&entry.path(), pool, gen, config.clone());
             }
             if entry.path().is_file() {
-                if let Ok(file) = std::fs::read_to_string(entry.path()) {
-                    let path = entry.path();
-                    let id = gen.output_paths.len();
-                    let ranges = get_content_ranges(file.as_bytes());
-                    let frontmatter: Yaml = yaml::Parser::from_str(
-                        &file[ranges.frontmatter.start..ranges.frontmatter.end],
-                    )
-                    .parse()
-                    .unwrap();
-                    if frontmatter.is_draft() {
-                        continue;
-                    }
-                    let rel = path.strip_prefix(&config.input).unwrap();
-                    let dir = rel.parent().unwrap();
-                    for tag in frontmatter.get_tags() {
-                        let tag = tag;
-                        if let Some(vec) = gen.collections.get_mut(tag) {
-                            vec.push(id);
-                        } else {
-                            gen.collections.insert(tag.to_owned(), vec![id]);
-                        }
-                    }
-                    for segment in dir {
-                        let key = segment.to_str().unwrap();
-                        if let Some(vec) = gen.taxonomies.get_mut(key) {
-                            vec.push(id)
-                        } else {
-                            gen.taxonomies.insert(key.to_owned(), vec![id]);
-                        }
-                    }
-                    gen.output_paths.push(rel.to_path_buf());
-
-                    pool.execute(Job::ProcessMD(ranges, file, entry.path(), config.clone()))
+                match std::fs::read_to_string(entry.path()) {
+                    Ok(file) => content.push_file(entry.path(), &file),
+                    Err(e) => println!("{}", e),
                 }
             }
         }
