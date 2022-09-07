@@ -1,10 +1,11 @@
 use std::collections::hash_map::DefaultHasher;
-use std::collections::HashMap;
 use std::hash::Hasher;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use crate::html;
+use crate::utils::get_content_ranges;
+use crate::yaml::{Yaml, YamlError};
+use crate::{html, yaml};
 
 pub struct Config {
     pub input: PathBuf,
@@ -22,20 +23,12 @@ impl Config {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Default)]
-pub struct GeneratedData {
-    pub output_paths: Vec<PathBuf>,
-    pub taxonomies: HashMap<String, Vec<usize>>,
-    pub collections: HashMap<String, Vec<usize>>,
-}
-
 #[derive(Debug, Eq, PartialEq)]
 pub struct Page<'a> {
     _id: u64,
     _slug: String,
     _directory: String,
     _path: PathBuf,
-    _out_path: &'a Path,
     _raw: &'a str,
     _html: String,
 }
@@ -43,7 +36,6 @@ pub struct Page<'a> {
 impl<'a> Page<'a> {
     pub fn write<P: AsRef<Path> + 'a, W: Write>(
         p: P,
-        out_path: &'a Path,
         frontmatter: &'a str,
         raw: &'a str,
         w: &mut W,
@@ -65,11 +57,75 @@ impl<'a> Page<'a> {
         w.write_all("_html: \"".as_bytes())?;
         html::write_html(w.by_ref(), pulldown_cmark::Parser::new(raw.trim()))?;
         w.write_all("\", ".as_bytes())?;
-        w.write_fmt(format_args!("_outpath: \"{}\", ", out_path.display()))?;
         if let Ok(yaml) = yaml {
             yaml.write_json(w)?;
         }
         w.write_all(" }".as_bytes())?;
         Ok(())
+    }
+}
+
+pub struct Token {
+    path: (usize, usize),
+    frontmatter: (usize, usize),
+    body: (usize, usize),
+}
+
+#[derive(Default)]
+pub struct Content {
+    raw: String,
+    tokens: Vec<Token>,
+}
+
+impl Content {
+    #[allow(dead_code)]
+    pub fn new() -> Self {
+        Self::default()
+    }
+    pub fn with_capacity(size: usize) -> Self {
+        Self {
+            raw: String::with_capacity(size * 1100),
+            tokens: Vec::with_capacity(size),
+        }
+    }
+    pub fn push_file<P: AsRef<Path>>(&mut self, path: P, raw: &str) {
+        let start = self.raw.len();
+        let path_str = path.as_ref().to_string_lossy();
+        let path = (start, path_str.len() + start);
+        let start = start + path_str.len();
+        self.raw.push_str(&path_str);
+        let ranges = get_content_ranges(raw.as_bytes());
+        self.raw.push_str(raw);
+        let frontmatter = (
+            ranges.frontmatter.start + start,
+            ranges.frontmatter.end + start,
+        );
+        let body = (ranges.body.start + start, ranges.body.end + start);
+        self.tokens.push(Token {
+            path,
+            frontmatter,
+            body,
+        });
+    }
+    pub fn len(&self) -> usize {
+        self.tokens.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.tokens.is_empty()
+    }
+    pub fn tokens(&self) -> &[Token] {
+        &self.tokens
+    }
+    pub fn path(&self, token: &Token) -> &str {
+        &self.raw[token.path.0..token.path.1]
+    }
+    pub fn frontmatter_raw(&self, token: &Token) -> &str {
+        &self.raw[token.frontmatter.0..token.frontmatter.1]
+    }
+    pub fn frontmatter<'a>(&'a self, token: &'a Token) -> Result<Yaml<'a>, YamlError> {
+        yaml::Parser::from_str(self.frontmatter_raw(token)).parse()
+    }
+    pub fn body_raw(&self, token: &Token) -> &str {
+        &self.raw[token.body.0..token.body.1]
     }
 }

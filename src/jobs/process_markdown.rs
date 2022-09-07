@@ -1,48 +1,31 @@
 use std::{
     fs::File,
     io::{BufWriter, Write},
-    path::{Path, PathBuf},
     sync::Arc,
 };
 
-use crate::{
-    types::{Config, Page},
-    utils::ContentRanges,
-};
+use crate::types::{Config, Content, Page};
 
-#[inline]
-pub fn generate(
-    ranges: ContentRanges,
-    content: String,
-    path: PathBuf,
-    config: Arc<Config>,
-) -> std::io::Result<()> {
-    let path = path.to_str().unwrap();
-    let input_str: String = config.input.display().to_string();
-    if let Some(stripped) = path
-        .strip_prefix(&input_str)
-        .and_then(|s| s.strip_prefix('/'))
-    {
-        let outdir: &Path = &config.output;
-        let output = outdir.join(format!("{}.tsx", &stripped));
-        let _yaml = crate::yaml::Parser::from_str(
-            &content[ranges.frontmatter.start..ranges.frontmatter.end],
-        )
-        .parse();
-        if let Some(parent) = output.parent() {
-            let _ = std::fs::create_dir_all(parent);
+pub fn process_all(content: Arc<Content>, config: Arc<Config>) -> std::io::Result<()> {
+    let file = File::create(config.output.join("content.ts"))?;
+    let mut writer = BufWriter::new(file);
+    for (id, token) in content.tokens().iter().enumerate() {
+        let path = content.path(token);
+        let input_str: String = config.input.display().to_string();
+        if let Some(stripped) = path
+            .strip_prefix(&input_str)
+            .and_then(|s| s.strip_prefix('/'))
+        {
+            writer.write_fmt(format_args!("export const q{} = ", id))?;
+            Page::write(
+                &stripped,
+                content.frontmatter_raw(token),
+                content.body_raw(token),
+                &mut writer,
+            )?;
+            writer.write_all(b"\n")?;
         }
-        let file = File::create(&output)?;
-        let mut writer = BufWriter::new(file);
-        let _ = writer.write(b"export default ")?;
-        Page::write(
-            &stripped,
-            &output,
-            &content[ranges.frontmatter.start..ranges.frontmatter.end],
-            &content[ranges.body.start..ranges.body.end],
-            &mut writer,
-        )?;
-        writer.flush()?;
     }
+    writer.flush()?;
     Ok(())
 }

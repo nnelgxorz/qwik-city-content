@@ -1,6 +1,4 @@
-#![allow(dead_code)]
 use std::{
-    path::PathBuf,
     sync::{
         mpsc::{Receiver, Sender},
         Arc, Mutex,
@@ -9,10 +7,7 @@ use std::{
     time::Instant,
 };
 
-use crate::{
-    types::{Config, GeneratedData},
-    utils::ContentRanges,
-};
+use crate::types::{Config, Content};
 
 pub struct ThreadPool {
     start: Instant,
@@ -60,6 +55,7 @@ impl Drop for ThreadPool {
 
 #[derive(Debug)]
 struct Worker {
+    #[allow(dead_code)]
     id: usize,
     thread: Option<JoinHandle<()>>,
 }
@@ -70,33 +66,27 @@ impl Worker {
             let job = receiver.lock().unwrap().recv().unwrap();
             // println!("Worker {} got a job; executing.", id);
             match job {
-                Job::ProcessMD(ranges, content, path, config) => {
-                    let _ = crate::jobs::process_markdown::generate(ranges, content, path, config);
-                }
-                Job::ProcessMDX(_, _, path, _) => {
-                    println!(
-                        "Skipping {} .mdx is not currently supported",
-                        path.display()
-                    );
-                }
-                Job::GenerateTaxonomies(config, gen) => {
-                    if let Err(e) = crate::jobs::write_taxonomies::generate(config, gen) {
-                        println!("{}", e)
-                    }
-                }
-                Job::GenerateCollections(config, gen) => {
-                    if let Err(e) = crate::jobs::write_collections::generate(config, gen) {
-                        println!("{}", e)
-                    }
-                }
                 Job::WriteHelpers(config) => {
                     if let Err(e) = crate::jobs::write_type_helpers::generate(config) {
-                        println!("{}", e)
+                        println!("Helpers {}", e)
                     }
                 }
                 Job::GenerateRouteParams(config) => {
                     if let Err(e) = crate::jobs::generate_route_params::generate(&config.routes) {
-                        println!("{}", e)
+                        println!("Params {}", e)
+                    }
+                }
+                Job::ProcessCollections(content, config) => {
+                    if crate::jobs::write_collections::process_all(content, config).is_err() {
+                        println!("Yaml Error error");
+                    }
+                }
+                Job::ProcessTaxonomies(content, config) => {
+                    crate::jobs::write_taxonomies::process_all(content, config)
+                }
+                Job::ProcessMarkdown(content, config) => {
+                    if let Err(e) = crate::jobs::process_markdown::process_all(content, config) {
+                        println!("Markdown {}", e)
                     }
                 }
                 Job::Terminate => {
@@ -112,11 +102,10 @@ impl Worker {
 }
 
 pub enum Job {
-    ProcessMD(ContentRanges, String, PathBuf, Arc<Config>),
-    ProcessMDX(ContentRanges, String, PathBuf, Arc<Config>),
-    GenerateTaxonomies(Arc<Config>, Arc<GeneratedData>),
-    GenerateCollections(Arc<Config>, Arc<GeneratedData>),
     GenerateRouteParams(Arc<Config>),
     WriteHelpers(Arc<Config>),
+    ProcessCollections(Arc<Content>, Arc<Config>),
+    ProcessTaxonomies(Arc<Content>, Arc<Config>),
+    ProcessMarkdown(Arc<Content>, Arc<Config>),
     Terminate,
 }
