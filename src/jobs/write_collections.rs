@@ -72,7 +72,7 @@ pub fn write(
 
     let _ = writer.write("export const all: All[] = [".as_bytes())?;
     writer.write_all(" q1".as_bytes())?;
-    for id in 1..gen.collections.len() {
+    for id in 1..content.tokens().len() {
         writer.write_fmt(format_args!(", q{}", id))?;
     }
     writer.write_all(b"];\n")?;
@@ -94,7 +94,7 @@ pub fn write(
     }
     let _ = writer.write("export type All = Merge<".as_bytes())?;
     writer.write_all("typeof q0".as_bytes())?;
-    for id in 1..gen.output_paths.len() - 1 {
+    for id in 1..content.tokens().len() - 1 {
         writer.write_fmt(format_args!(" | typeof q{}", id))?;
     }
     let _ = writer.write(b">;\n")?;
