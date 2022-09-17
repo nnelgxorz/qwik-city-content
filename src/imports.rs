@@ -106,7 +106,10 @@ mod test {
         let src = "No imports here.";
         let (imports, body_start) = Parser::new(src).parse().unwrap();
         assert_eq!(imports.len(), 0);
-        assert_eq!(body_start, 0)
+        assert_eq!(
+            body_start, 0,
+            "No imports. Remainder should start at the beginning of the file."
+        )
     }
     #[test]
     pub fn default_import() {
@@ -183,5 +186,29 @@ mod test {
             src.len(),
             "Should start at the start of next line"
         );
+    }
+    #[test]
+    pub fn gets_remaining_content() {
+        let lines = vec![
+            "import SomeComponent from \"./some-file\"",
+            "import {ComponentA,ComponentB,ComponentC} from \"./some-other-file\"",
+            "",
+            "# Start of Markdown",
+        ];
+        let src = lines.join("\n");
+        let (_, body_start) = Parser::new(&src).parse().unwrap();
+        // The remainder may have newlines at the beginning, but that is okay.
+        assert_eq!(&src[body_start..].trim(), lines.last().unwrap())
+    }
+    #[test]
+    pub fn gets_remaining_empty_content() {
+        let lines = vec![
+            "import SomeComponent from \"./some-file\"",
+            "import {ComponentA,ComponentB,ComponentC} from \"./some-other-file\"",
+        ];
+        let src = lines.join("\n");
+        let (_, body_start) = Parser::new(&src).parse().unwrap();
+        // The remainder may have newlines at the beginning, but that is okay.
+        assert_eq!(src[body_start..].trim(), "")
     }
 }
