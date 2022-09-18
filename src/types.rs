@@ -3,9 +3,10 @@ use std::hash::Hasher;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+use crate::html_writer::ContentVec;
 use crate::utils::get_content_ranges;
+use crate::yaml;
 use crate::yaml::{Yaml, YamlError};
-use crate::{html, yaml};
 
 pub struct Config {
     pub input: PathBuf,
@@ -25,7 +26,7 @@ impl Config {
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct Page<'a> {
-    _id: u64,
+    _id: String,
     _slug: String,
     _directory: String,
     _path: PathBuf,
@@ -34,10 +35,11 @@ pub struct Page<'a> {
 }
 
 impl<'a> Page<'a> {
-    pub fn write<P: AsRef<Path> + 'a, W: Write>(
+    pub fn write_json<P: AsRef<Path> + 'a, W: Write>(
         p: P,
         frontmatter: &'a str,
         raw: &'a str,
+        content: &ContentVec,
         w: &mut W,
     ) -> std::io::Result<()> {
         let mut hasher = DefaultHasher::new();
@@ -48,15 +50,14 @@ impl<'a> Page<'a> {
         let _directory = _path.parent().and_then(|s| s.to_str());
         let yaml = crate::yaml::Parser::from_str(frontmatter).parse();
         w.write_all("{ ".as_bytes())?;
-        w.write_fmt(format_args!("_id: {}, ", _id))?;
+        w.write_fmt(format_args!("_id: \"{}\", ", _id))?;
         w.write_fmt(format_args!("_slug: \"{}\", ", _slug.unwrap_or_default()))?;
+        w.write_fmt(format_args!("_raw: {:?}, ", raw))?;
         w.write_fmt(format_args!(
             "_directory: \"{}\", ",
             _directory.unwrap_or_default()
         ))?;
-        w.write_all("_html: \"".as_bytes())?;
-        html::write_html(w.by_ref(), pulldown_cmark::Parser::new(raw.trim()))?;
-        w.write_all("\", ".as_bytes())?;
+        w.write_fmt(format_args!("_content: {}, ", content))?;
         if let Ok(yaml) = yaml {
             yaml.write_json(w)?;
         }
@@ -65,6 +66,7 @@ impl<'a> Page<'a> {
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
 pub struct Token {
     path: (usize, usize),
     frontmatter: (usize, usize),
