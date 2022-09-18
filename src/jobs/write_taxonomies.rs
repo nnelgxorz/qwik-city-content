@@ -7,7 +7,7 @@ use std::{
 
 use crate::{
     types::{Config, Content},
-    utils::{write_camel_case, write_snake_case},
+    utils::{write_camel_case, write_output_path, write_snake_case},
 };
 
 pub fn process_all(content: Arc<Content>, config: Arc<Config>) {
@@ -47,9 +47,9 @@ pub fn write(
         let path = content.path(token).strip_prefix(&*input).unwrap();
         let output_path = crate::utils::output_path(Path::new("./files/"), path);
         let lossy = output_path.to_string_lossy();
-        let output_path = lossy.trim_end_matches(".tsx").trim_end_matches(".ts");
-
-        writer.write_fmt(format_args!("import q{} from {:?}\n", idx, output_path))?;
+        writer.write_fmt(format_args!("import q{} from \"", idx))?;
+        write_output_path(&*lossy, path, &mut writer)?;
+        writer.write_all(b"\"\n")?;
     }
 
     let _ = writer.write(b"\n")?;

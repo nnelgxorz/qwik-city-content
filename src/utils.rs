@@ -95,6 +95,28 @@ pub fn output_path<P: AsRef<Path>>(outdir: P, path: &str) -> PathBuf {
     return outdir.as_ref().join(&filename);
 }
 #[inline]
+pub fn write_output_path<P: AsRef<Path>, W: Write>(
+    outdir: P,
+    path: &str,
+    w: &mut W,
+) -> std::io::Result<()> {
+    // let extension = if path.ends_with(".mdx") {
+    //     ".tsx"
+    // } else {
+    //     ".ts"
+    // };
+    w.write_fmt(format_args!("{}", outdir.as_ref().display()))?;
+    for c in path.trim_start_matches('/').chars() {
+        if c == '/' {
+            w.write_all(&[b'_'])?;
+            continue;
+        }
+        w.write_all(&[c as u8])?;
+    }
+    Ok(())
+    // w.write_all(extension.as_bytes())
+}
+#[inline]
 pub fn html_tag(string: &str) -> &str {
     let start = string.find(|c| c != '<').unwrap_or(0);
     let end = string[start..]
