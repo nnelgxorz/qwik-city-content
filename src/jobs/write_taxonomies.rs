@@ -7,7 +7,7 @@ use std::{
 
 use crate::{
     types::{Config, Content},
-    utils::{write_camel_case, write_snake_case},
+    utils::{write_camel_case, write_output_path, write_snake_case},
 };
 
 pub fn process_all(content: Arc<Content>, config: Arc<Config>) {
@@ -31,7 +31,7 @@ pub fn process_all(content: Arc<Content>, config: Arc<Config>) {
 
 #[inline]
 pub fn write(
-    _: Arc<Content>,
+    content: Arc<Content>,
     config: Arc<Config>,
     gen: &HashMap<String, Vec<usize>>,
 ) -> std::io::Result<()> {
@@ -42,8 +42,18 @@ pub fn write(
     let file = std::fs::File::create(&config.output.join("taxonomies.ts"))?;
     let mut writer = BufWriter::new(file);
 
+    let input = config.input.to_string_lossy();
+    for (idx, token) in content.tokens().iter().enumerate() {
+        let path = content.path(token).strip_prefix(&*input).unwrap();
+        let output_path = crate::utils::output_path(Path::new("./files/"), path);
+        let lossy = output_path.to_string_lossy();
+        writer.write_fmt(format_args!("import q{} from \"", idx))?;
+        write_output_path(&*lossy, path, &mut writer)?;
+        writer.write_all(b"\"\n")?;
+    }
+
+    let _ = writer.write(b"\n")?;
     let _ = writer.write(b"import type { Merge } from \"./generated-helpers\";\n")?;
-    let _ = writer.write(b"import * as C from \"./content\";\n")?;
     let _ = writer.write(b"\n")?;
 
     for (tag, ids) in gen.iter() {
@@ -54,9 +64,9 @@ pub fn write(
         write_camel_case(tag, &mut writer)?;
         let _ = writer.write("[] = [".as_bytes())?;
         if let Some(first) = id_iter.next() {
-            writer.write_fmt(format_args!(" C.q{}", first))?;
+            writer.write_fmt(format_args!(" q{}", first))?;
             for id in id_iter {
-                writer.write_fmt(format_args!(", C.q{}", id))?;
+                writer.write_fmt(format_args!(", q{}", id))?;
             }
         }
         let _ = writer.write(b"];\n")?;
@@ -70,9 +80,9 @@ pub fn write(
         write_camel_case(tag, &mut writer)?;
         let _ = writer.write(" = Merge<".as_bytes())?;
         if let Some(first) = id_iter.next() {
-            writer.write_fmt(format_args!("typeof C.q{}", first))?;
+            writer.write_fmt(format_args!("typeof q{}", first))?;
             for id in id_iter {
-                writer.write_fmt(format_args!(" | typeof C.q{}", id))?;
+                writer.write_fmt(format_args!(" | typeof q{}", id))?;
             }
         }
         let _ = writer.write(b">;\n")?;

@@ -1,12 +1,13 @@
 use std::{
     collections::HashMap,
     io::{BufWriter, Write},
+    path::Path,
     sync::Arc,
 };
 
 use crate::{
     types::{Config, Content},
-    utils::{write_camel_case, write_snake_case},
+    utils::{write_camel_case, write_output_path, write_snake_case},
     yaml::YamlError,
 };
 
@@ -42,7 +43,15 @@ pub fn write(
     let mut writer = BufWriter::new(file);
 
     let _ = writer.write(b"import type { Merge } from \"./generated-helpers\";\n")?;
-    let _ = writer.write(b"import * as C from \"./content\";\n")?;
+    let input = config.input.to_string_lossy();
+    for (idx, token) in content.tokens().iter().enumerate() {
+        let path = content.path(token).strip_prefix(&*input).unwrap();
+        let output_path = crate::utils::output_path(Path::new("./files/"), path);
+        let lossy = output_path.to_string_lossy();
+        writer.write_fmt(format_args!("import q{} from \"", idx))?;
+        write_output_path(&*lossy, path, &mut writer)?;
+        writer.write_all(b"\"\n")?;
+    }
     let _ = writer.write(b"\n")?;
 
     for (tag, ids) in gen.iter() {
@@ -53,23 +62,13 @@ pub fn write(
         write_camel_case(tag, &mut writer)?;
         let _ = writer.write("[] = [".as_bytes())?;
         if let Some(first) = id_iter.next() {
-            writer.write_fmt(format_args!(" C.q{}", first))?;
+            writer.write_fmt(format_args!(" q{}", first))?;
             for id in id_iter {
-                writer.write_fmt(format_args!(", C.q{}", id))?;
+                writer.write_fmt(format_args!(", q{}", id))?;
             }
         }
         let _ = writer.write(b"];\n")?;
     }
-    let mut ids = content.tokens().iter().enumerate();
-    if let Some((first, _)) = ids.next() {
-        let _ = writer.write(b"export const all = [ ")?;
-        writer.write_fmt(format_args!("C.q{}", first))?;
-        for (id, _) in ids {
-            writer.write_fmt(format_args!(", C.q{}", id))?;
-        }
-        let _ = writer.write(b"];\n")?;
-    }
-
     let _ = writer.write("export const all: All[] = [".as_bytes())?;
     writer.write_all(" q1".as_bytes())?;
     for id in 1..content.tokens().len() {
@@ -85,9 +84,9 @@ pub fn write(
         write_camel_case(tag, &mut writer)?;
         let _ = writer.write(" = Merge<".as_bytes())?;
         if let Some(first) = id_iter.next() {
-            writer.write_fmt(format_args!("typeof C.q{}", first))?;
+            writer.write_fmt(format_args!("typeof q{}", first))?;
             for id in id_iter {
-                writer.write_fmt(format_args!(" | typeof C.q{}", id))?;
+                writer.write_fmt(format_args!(" | typeof q{}", id))?;
             }
         }
         let _ = writer.write(b">;\n")?;

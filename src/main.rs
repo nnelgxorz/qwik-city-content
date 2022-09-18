@@ -1,4 +1,5 @@
-mod html;
+mod html_writer;
+mod imports;
 mod jobs;
 mod route_params;
 mod threadpool;
@@ -18,12 +19,12 @@ use crate::threadpool::ThreadPool;
 
 fn main() {
     let input = PathBuf::from("examples/blog/src/content");
-    let output = PathBuf::from("examples/blog/src/content/content-generated");
+    let output = PathBuf::from("examples/blog/src/content-generated");
     let routes = PathBuf::from("examples/blog/src/routes");
     if let Err(e) = std::fs::remove_dir_all(&output) {
         println!("Remove Dir: {}", e);
     }
-    if let Err(e) = std::fs::create_dir_all(&output) {
+    if let Err(e) = std::fs::create_dir_all(&output.join("files")) {
         println!("Create Dir: {}", e)
     }
     let size = std::fs::read_dir(&input).unwrap().count();
@@ -34,6 +35,7 @@ fn main() {
     pool.execute(Job::ProcessCollections(content.clone(), config.clone()));
     pool.execute(Job::ProcessTaxonomies(content.clone(), config.clone()));
     pool.execute(Job::ProcessMarkdown(content.clone(), config.clone()));
+    pool.execute(Job::ProcessMDX(content.clone(), config.clone()));
     pool.execute(Job::GenerateRouteParams(config.clone()));
     if !content.is_empty() {
         pool.execute(Job::WriteHelpers(config))

@@ -1,5 +1,10 @@
 #![allow(dead_code)]
-use std::{borrow::Cow, io::Write, ops::Range};
+use std::{
+    borrow::Cow,
+    io::Write,
+    ops::Range,
+    path::{Path, PathBuf},
+};
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct ContentRanges {
@@ -78,12 +83,54 @@ pub fn write_snake_case<W: Write>(string: &str, w: &mut W) -> std::io::Result<()
     }
     Ok(())
 }
+#[inline]
+pub fn output_path<P: AsRef<Path>>(outdir: P, path: &str) -> PathBuf {
+    let extension = if path.ends_with(".mdx") {
+        ".tsx"
+    } else {
+        ".ts"
+    };
+    let mut filename = path.trim_start_matches('/').replace('/', "_");
+    filename.push_str(extension);
+    return outdir.as_ref().join(&filename);
+}
+#[inline]
+pub fn write_output_path<P: AsRef<Path>, W: Write>(
+    outdir: P,
+    path: &str,
+    w: &mut W,
+) -> std::io::Result<()> {
+    // let extension = if path.ends_with(".mdx") {
+    //     ".tsx"
+    // } else {
+    //     ".ts"
+    // };
+    w.write_fmt(format_args!("{}", outdir.as_ref().display()))?;
+    for c in path.trim_start_matches('/').chars() {
+        if c == '/' {
+            w.write_all(&[b'_'])?;
+            continue;
+        }
+        w.write_all(&[c as u8])?;
+    }
+    Ok(())
+    // w.write_all(extension.as_bytes())
+}
+#[inline]
+pub fn html_tag(string: &str) -> &str {
+    let start = string.find(|c| c != '<').unwrap_or(0);
+    let end = string[start..]
+        .find(|c| matches!(c, '/' | '>' | ' '))
+        .map(|c| c + 1)
+        .unwrap_or(string.len());
+    string[start..end].trim()
+}
 
 #[cfg(test)]
 mod test {
-    use std::borrow::Cow;
+    use std::{borrow::Cow, path::Path};
 
-    use super::{capitalize, get_content_ranges};
+    use super::{capitalize, get_content_ranges, html_tag, output_path};
 
     #[test]
     fn gets_empty_file_ranges() {
@@ -121,5 +168,41 @@ mod test {
         let result = capitalize(input);
         let expected: Cow<str> = "Lowercase".to_owned().into();
         assert_eq!(expected, result)
+    }
+    #[test]
+    fn generates_md_output_path() {
+        let outdir = "content/generated";
+        let filename = "posts/post-1.md";
+        let result = output_path(outdir, filename);
+        assert_eq!(
+            result,
+            Path::new("content/generated/posts_post-1.md.ts").to_path_buf()
+        )
+    }
+    #[test]
+    fn generates_mdx_output_path() {
+        let outdir = "content/generated";
+        let filename = "posts/post-1.mdx";
+        let result = output_path(outdir, filename);
+        assert_eq!(
+            result,
+            Path::new("content/generated/posts_post-1.mdx.tsx").to_path_buf()
+        )
+    }
+    #[test]
+    fn gets_html_tag_name() {
+        let tags = [
+            "<tag>",
+            "<tag >",
+            "<tag id=\"id\" class=\"classes\">",
+            "<tag id=\"id\" class=\"classes\"/>",
+            "<tag id=\"id\" class=\"classes\" >",
+            "<tag id=\"id\" class=\"classes\" />",
+            "<tag/>",
+            "<tag />",
+        ];
+        for tag in tags {
+            assert_eq!(html_tag(tag), "tag")
+        }
     }
 }

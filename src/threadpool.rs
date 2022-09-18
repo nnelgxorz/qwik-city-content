@@ -89,6 +89,11 @@ impl Worker {
                         println!("Markdown {}", e)
                     }
                 }
+                Job::ProcessMDX(content, config) => {
+                    if let Err(e) = crate::jobs::process_mdx::process_all(content, config) {
+                        println!("Markdown {}", e)
+                    }
+                }
                 Job::Terminate => {
                     break;
                 }
@@ -107,5 +112,6 @@ pub enum Job {
     ProcessCollections(Arc<Content>, Arc<Config>),
     ProcessTaxonomies(Arc<Content>, Arc<Config>),
     ProcessMarkdown(Arc<Content>, Arc<Config>),
+    ProcessMDX(Arc<Content>, Arc<Config>),
     Terminate,
 }
