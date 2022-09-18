@@ -19,7 +19,6 @@ impl<'a> Iterator for RouteParams<'a> {
                 .to_string_lossy()
                 .strip_prefix('[')
                 .and_then(|s| s.strip_suffix(']'))
-                .map(|s| s.strip_prefix("...").unwrap_or(s))
             {
                 return Some(param.to_owned());
             }

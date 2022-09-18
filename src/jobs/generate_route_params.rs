@@ -29,10 +29,18 @@ fn generate_route_params_rec<P: AsRef<Path>>(root: P, count: &mut usize) -> std:
                     let file = std::fs::File::create(dir.join("generated.ts"))?;
                     let mut writer = BufWriter::new(file);
                     let _ = writer.write(
-                        b"export interface RouteParams extends Record<string, string> {\n",
+                        b"export interface RouteParams extends Record<string, string | undefined> {\n",
                     )?;
-                    writer.write_fmt(format_args!("  \"{}\": string\n", next))?;
+                    if let Some(param) = next.strip_prefix("...") {
+                        writer.write_fmt(format_args!("  \"{}\"?: string\n", param))?;
+                    } else {
+                        writer.write_fmt(format_args!("  \"{}\": string\n", next))?;
+                    }
                     for param in route_params {
+                        if let Some(param) = param.strip_prefix("...") {
+                            writer.write_fmt(format_args!("  \"{}\"?: string\n", param))?;
+                            continue;
+                        }
                         writer.write_fmt(format_args!("  \"{}\": string\n", param))?;
                     }
                     let _ = writer.write(b"}")?;
